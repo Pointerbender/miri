@@ -82,6 +82,8 @@ pub struct Stack {
     /// * Above a `SharedReadOnly` there can only be more `SharedReadOnly`.
     /// * Except for `Untagged`, no tag occurs in the stack more than once.
     borrows: Vec<Item>,
+    /// Whether the memory located was accessed for reading
+    was_read: bool,
 }
 
 /// Extra per-allocation state.
@@ -378,6 +380,9 @@ impl<'tcx> Stack {
                     item.perm = Permission::Disabled;
                 }
             }
+
+            // TODO PB: mark as accessed for read
+            self.was_read = true;
         }
 
         // Done.
@@ -404,6 +409,8 @@ impl<'tcx> Stack {
         for item in self.borrows.drain(..).rev() {
             Stack::check_protector(&item, None, global)?;
         }
+
+        debug_assert!(self.borrows.is_empty());
 
         Ok(())
     }
@@ -475,7 +482,7 @@ impl<'tcx> Stacks {
     /// Creates new stack with initial tag.
     fn new(size: Size, perm: Permission, tag: SbTag) -> Self {
         let item = Item { perm, tag, protector: None };
-        let stack = Stack { borrows: vec![item] };
+        let stack = Stack { borrows: vec![item], was_read: false };
 
         Stacks { stacks: RefCell::new(RangeMap::new(size, stack)) }
     }
@@ -503,6 +510,17 @@ impl<'tcx> Stacks {
         for (offset, stack) in stacks.iter_mut(range.start, range.size) {
             f(offset, stack)?;
         }
+        Ok(())
+    }
+
+    /// Call `f` on every stack in the range.
+    fn retain(
+        &mut self,
+        range: AllocRange,
+        f: impl Fn(Size, &Stack) -> bool,
+    ) -> InterpResult<'tcx> {
+        let stacks = self.stacks.get_mut();
+        stacks.retain(range.start, range.size, f);
         Ok(())
     }
 }
@@ -602,6 +620,11 @@ impl Stacks {
         let global = extra.get_mut();
         self.for_each_mut(range, move |offset, stack| {
             stack.dealloc(tag, Pointer::new(alloc_id, offset), global)
+        }).and_then(|_| {
+            // TODO PB: remove unused stacks
+            self.retain(range, move |offset, stack| {
+                !(range.start >= offset && stack.borrows.is_empty() && !stack.was_read)
+            })
         })
     }
 }

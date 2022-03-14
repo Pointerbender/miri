@@ -113,6 +113,27 @@ impl<T> RangeMap<T> {
         return true;
     }
 
+    /// Retain
+    pub fn retain<'a>(
+        &'a mut self,
+        offset: Size,
+        len: Size,
+        f: impl Fn(Size, &T) -> bool,
+    ) {
+        let len = len.bytes();
+        if len > 0 {
+            let offset = offset.bytes();
+            let first_idx = self.find_offset(offset);
+            let end = offset + len;
+            let mut index = 0;
+            self.v.retain(|elem| {
+                let res = index < first_idx || elem.range.start < end || f(Size::from_bytes(elem.range.start), &elem.data);
+                index += 1;
+                res
+            });
+        }
+    }
+
     /// Provides mutable iteration over everything in the given range. As a side-effect,
     /// this will split entries in the map that are only partially hit by the given range,
     /// to make sure that when they are mutated, the effect is constrained to the given range.

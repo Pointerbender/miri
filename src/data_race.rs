@@ -753,6 +753,7 @@ impl VClockAlloc {
             alloc_ranges: RefCell::new(RangeMap::new(
                 len,
                 MemoryCellClocks::new(alloc_timestamp, alloc_index),
+                None
             )),
         }
     }

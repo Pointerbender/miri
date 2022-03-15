@@ -476,8 +476,9 @@ impl<'tcx> Stacks {
     fn new(size: Size, perm: Permission, tag: SbTag) -> Self {
         let item = Item { perm, tag, protector: None };
         let stack = Stack { borrows: vec![item] };
+        let remove = Some(Stack { borrows: vec![] });
 
-        Stacks { stacks: RefCell::new(RangeMap::new(size, stack)) }
+        Stacks { stacks: RefCell::new(RangeMap::new(size, stack, remove)) }
     }
 
     /// Call `f` on every stack in the range.

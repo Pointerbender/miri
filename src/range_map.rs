@@ -19,15 +19,16 @@ struct Elem<T> {
 #[derive(Clone, Debug)]
 pub struct RangeMap<T> {
     v: Vec<Elem<T>>,
+    remove: Option<T>,
 }
 
 impl<T> RangeMap<T> {
     /// Creates a new `RangeMap` for the given size, and with the given initial value used for
     /// the entire range.
     #[inline(always)]
-    pub fn new(size: Size, init: T) -> RangeMap<T> {
+    pub fn new(size: Size, init: T, remove: Option<T>) -> RangeMap<T> {
         let size = size.bytes();
-        let mut map = RangeMap { v: Vec::new() };
+        let mut map = RangeMap { v: Vec::new(), remove };
         if size > 0 {
             map.v.push(Elem { range: 0..size, data: init });
         }
@@ -168,7 +169,7 @@ impl<T> RangeMap<T> {
                 );
                 // see if we want to merge everything in `equal_since..end` (exclusive at the end!)
                 if successful_merge_count > 0 {
-                    if done || self.v[end_idx].data != self.v[equal_since_idx].data {
+                    if done || (self.v[end_idx].data != self.v[equal_since_idx].data && self.remove.as_ref() != Some(&self.v[end_idx].data)) {
                         // Everything in `equal_since..end` was equal. Make them just one element covering
                         // the entire range.
                         let removed_elems = end_idx - equal_since_idx - 1; // number of elements that we would remove
@@ -224,7 +225,7 @@ mod tests {
 
     #[test]
     fn basic_insert() {
-        let mut map = RangeMap::<i32>::new(Size::from_bytes(20), -1);
+        let mut map = RangeMap::<i32>::new(Size::from_bytes(20), -1, None);
         // Insert.
         for (_, x) in map.iter_mut(Size::from_bytes(10), Size::from_bytes(1)) {
             *x = 42;
@@ -246,7 +247,7 @@ mod tests {
 
     #[test]
     fn gaps() {
-        let mut map = RangeMap::<i32>::new(Size::from_bytes(20), -1);
+        let mut map = RangeMap::<i32>::new(Size::from_bytes(20), -1, None);
         for (_, x) in map.iter_mut(Size::from_bytes(11), Size::from_bytes(1)) {
             *x = 42;
         }
